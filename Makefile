@@ -19,7 +19,11 @@ clean:
 	rm -rf $(BIN_DIR)/
 
 docker-build:
-	docker build -t $(APP_NAME) .
+	docker build \
+		--build-arg http_proxy \
+		--build-arg https_proxy \
+		--build-arg no_proxy \
+		-t $(APP_NAME) .
 
 docker-run:
 	docker compose up -d --build
