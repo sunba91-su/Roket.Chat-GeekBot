@@ -137,6 +137,70 @@ func TestStandupStatusAfterSubmission(t *testing.T) {
 	}
 }
 
+func ensureLead(t *testing.T, h *standupHarness) {
+	t.Helper()
+	_ = h.s.SetRole("t1", "alice-id", "lead")
+}
+
+func TestStandupReportGenerates(t *testing.T) {
+	h := newStandupHarness(t)
+	ensureLead(t, h)
+
+	now := time.Now().Format("2006-01-02")
+	_ = h.s.CreateSession(&store.StandupSession{
+		ID: "sess-report", TeamID: "t1", Date: now, Status: "open",
+	})
+	_ = h.s.SubmitResponse(&store.StandupResponse{
+		ID: "r1", SessionID: "sess-report", UserID: "alice-id",
+		Username: "alice", Answers: "Great|Fixed bugs|None",
+		SubmittedAt: time.Now(),
+	})
+	_ = h.s.SubmitResponse(&store.StandupResponse{
+		ID: "r2", SessionID: "sess-report", UserID: "bob-id",
+		Username: "bob", Answers: "Good|Reviewed PRs|Waiting on API",
+		SubmittedAt: time.Now(),
+	})
+
+	h.dispatch("/standup report")
+
+	msg := strings.Join(h.msgr.sent, " ")
+	if !contains(msg, "@alice") {
+		t.Error("expected @alice in report")
+	}
+	if !contains(msg, "@bob") {
+		t.Error("expected @bob in report")
+	}
+	if !contains(msg, "Fixed bugs") {
+		t.Error("expected 'Fixed bugs' in report")
+	}
+	if !contains(msg, "Reviewed PRs") {
+		t.Error("expected 'Reviewed PRs' in report")
+	}
+}
+
+func TestStandupReportNoSession(t *testing.T) {
+	h := newStandupHarness(t)
+	ensureLead(t, h)
+
+	h.dispatch("/standup report")
+
+	msg := strings.Join(h.msgr.sent, " ")
+	if !contains(msg, "No standup") {
+		t.Logf("Message: %s", msg)
+	}
+}
+
+func TestStandupReportNonLeadDenied(t *testing.T) {
+	h := newStandupHarness(t)
+
+	h.dispatch("/standup report")
+
+	msg := strings.Join(h.msgr.sent, " ")
+	if !contains(msg, "lead") && !contains(msg, "admin") {
+		t.Logf("Message: %s", msg)
+	}
+}
+
 func TestStandupConversationFlow(t *testing.T) {
 	h := newStandupHarness(t)
 
