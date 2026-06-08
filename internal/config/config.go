@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"strings"
 )
 
 type Config struct {
@@ -13,10 +14,21 @@ type Config struct {
 }
 
 func Load() (*Config, error) {
+	botPass := os.Getenv("ROCKETCHAT_BOT_PASSWORD")
+	if botPass == "" {
+		if path := os.Getenv("ROCKETCHAT_BOT_PASSWORD_FILE"); path != "" {
+			b, err := os.ReadFile(path)
+			if err != nil {
+				return nil, fmt.Errorf("reading ROCKETCHAT_BOT_PASSWORD_FILE: %w", err)
+			}
+			botPass = strings.TrimSpace(string(b))
+		}
+	}
+
 	cfg := &Config{
 		ServerURL: os.Getenv("ROCKETCHAT_SERVER_URL"),
 		BotUser:   os.Getenv("ROCKETCHAT_BOT_USERNAME"),
-		BotPass:   os.Getenv("ROCKETCHAT_BOT_PASSWORD"),
+		BotPass:   botPass,
 		MainAdmin: os.Getenv("ROCKETCHAT_MAIN_ADMIN"),
 	}
 

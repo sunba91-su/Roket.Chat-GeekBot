@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/url"
+	"strings"
 	"sync"
 	"time"
 
@@ -75,6 +76,9 @@ func (c *Client) Connect(user, password string) error {
 	log.Printf("Connecting to Rocket.Chat at %s", c.serverURL.String())
 
 	if err := c.connect(); err != nil {
+		if isAuthError(err) {
+			return fmt.Errorf("authentication failed — check bot credentials: %w", err)
+		}
 		return err
 	}
 
@@ -115,6 +119,17 @@ func (c *Client) connect() error {
 
 	log.Printf("Connected as %s (user ID: %s)", c.user, creds.ID)
 	return nil
+}
+
+func isAuthError(err error) bool {
+	if err == nil {
+		return false
+	}
+	s := err.Error()
+	return strings.Contains(s, "401") ||
+		strings.Contains(s, "User not found") ||
+		strings.Contains(s, "error-login-blocked") ||
+		strings.Contains(s, "Login has been temporarily blocked")
 }
 
 func (c *Client) Disconnect() {
@@ -243,6 +258,10 @@ func (c *Client) watchConnection() {
 				c.mu.Lock()
 				err := c.connect()
 				c.mu.Unlock()
+
+				if isAuthError(err) {
+					log.Fatalf("Authentication failed — check bot credentials: %v", err)
+				}
 
 				if err == nil {
 					log.Println("Reconnected successfully")
