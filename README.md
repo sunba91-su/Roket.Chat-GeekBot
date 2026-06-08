@@ -1,124 +1,196 @@
-# Roket.Chat-GeekBot 🤖
+# Roket.Chat-GeekBot
 
-> A Go-powered Rocket.Chat bot for team daily standups. Manage teams, collect standup reports, and keep everyone aligned — all from your Rocket.Chat channels with slash commands.
+> A Go-powered Rocket.Chat bot for team daily standups. Manage teams, collect standup reports conversationally via DM, and post formatted summaries to team channels — all with slash commands.
 
 ![Go version](https://img.shields.io/badge/Go-1.22%2B-00ADD8?logo=go)
 ![License](https://img.shields.io/badge/license-MIT-green)
 ![Rocket.Chat](https://img.shields.io/badge/Rocket.Chat-bot-red?logo=rocket.chat)
+![Docker](https://img.shields.io/badge/Docker-ready-2496ED?logo=docker)
 
 ## Features
 
-- **Team daily standups** — collect and report standup updates via slash commands
-- **Multi-team support** — run standups for multiple teams independently
-- **Role-based access** — main admin, team leads, and team members with scoped permissions
-- **Configurable per team** — schedule (cron), questions, timezone, channel
-- **SQLite persistence** — no external database required
-- **GitHub Codespaces ready** — one-click dev environment with prebuilds
+- **Conversational standups** — bot asks one question at a time via DM, collects answers in a natural flow
+- **Multi-team support** — run independent standups for multiple teams
+- **Role-based access** — main admin > team leads > team members with scoped permissions
+- **Configurable per team** — custom questions, schedule (cron), timezone, and report channel
+- **Formatted reports** — standup summaries posted to the team's configured channel with @mentions and emoji labels
+- **SQLite persistence** — no external database required, single-file storage
+- **Docker deployment** — multi-stage distroless image, docker-compose ready
+- **Automatic reconnect** — exponential backoff on WebSocket disconnection
 
 ## Commands
 
-### Main Admin
-| Command | Description |
-|---------|-------------|
-| `/standup team create <name>` | Create a new team |
-| `/standup team delete <name>` | Delete a team |
-| `/standup team set-lead <team> @user` | Set team lead |
-
-### Team Lead
-| Command | Description |
-|---------|-------------|
-| `/standup team add @user` | Add member to team |
-| `/standup team remove @user` | Remove member from team |
-| `/standup team set schedule <cron>` | Set standup schedule |
-| `/standup team set channel #channel` | Set report channel |
-| `/standup team set questions <q1\|q2\|q3>` | Set custom questions |
-| `/standup team set timezone <tz>` | Set team timezone |
-| `/standup team members` | List team members |
-
-### Team Members
-| Command | Description |
-|---------|-------------|
-| `/standup submit <answer1\|answer2\|answer3>` | Submit daily standup |
-| `/standup status` | Check if you've submitted today |
-
-### All Users
-| Command | Description |
-|---------|-------------|
-| `/standup help` | Show available commands |
-| `/standup report` | View latest standup report for your team |
+| Command | Role | Description |
+|---------|------|-------------|
+| `/standup help` | All | Show available commands |
+| `/standup team create <name>` | Admin | Create a new team |
+| `/standup team delete <name>` | Admin | Delete a team |
+| `/standup team set-lead <name> @user` | Admin | Set team lead |
+| `/standup team add @user` | Lead | Add member to team |
+| `/standup team remove @user` | Lead | Remove member from team |
+| `/standup team set schedule <cron>` | Lead | Set standup schedule |
+| `/standup team set channel #channel` | Lead | Set report channel |
+| `/standup team set questions <q1\|q2\|q3>` | Lead | Set custom questions |
+| `/standup team set timezone <tz>` | Lead | Set team timezone |
+| `/standup team members` | Lead | List team members |
+| `/standup submit` | Member | Start a standup submission (DM) |
+| `/standup status` | Member | Check submission status |
+| `/standup report` | Member | View latest team report |
 
 ## Quick Start
 
 ### Prerequisites
-- A Rocket.Chat server with bot user credentials
-- Go 1.22+ (or use the Codespaces devcontainer)
+
+- A Rocket.Chat server with a bot user credential set (server URL, username, password)
+- Go 1.22+ (for native development) or Docker (for containerized deployment)
 
 ### Configuration
 
-Create a `config.yaml` file or set environment variables:
+Copy the environment template and fill in your Rocket.Chat bot credentials:
 
-```yaml
-server_url: "https://chat.yourcompany.com"
-bot_username: "geekbot"
-bot_password: "your-password"
-main_admin: "admin_username"  # Rocket.Chat username of the main admin
+```bash
+cp .env.example .env
 ```
 
-### Run
+| Variable | Required | Default | Description |
+|----------|----------|---------|-------------|
+| `ROCKETCHAT_SERVER_URL` | Yes | — | Rocket.Chat server URL |
+| `ROCKETCHAT_BOT_USERNAME` | Yes | — | Bot account username |
+| `ROCKETCHAT_BOT_PASSWORD` | Yes | — | Bot account password |
+| `ROCKETCHAT_MAIN_ADMIN` | Yes | — | Rocket.Chat username of the main bot administrator |
+| `STANDUP_DB_PATH` | No | `~/standup-bot.db` | Path to the SQLite database file |
+
+### Run with Go
 
 ```bash
 go run ./cmd/bot
 ```
 
-## Development with Codespaces
+### Run with Docker
 
-Click the button below to start a preconfigured dev environment:
+```bash
+# Build and start
+make docker-run
 
-[![Open in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://github.com/codespaces/new?hide_repo_select=true&ref=main&repo=sunba91-su/Roket.Chat-GeekBot)
+# Or manually:
+docker compose up -d --build
 
-The devcontainer includes:
-- Go 1.22+ toolchain
-- VS Code Go extensions (linting, debugging, test explorer)
-- Preconfigured 4-core machine with 30min idle timeout
+# View logs
+docker compose logs -f
+
+# Stop
+docker compose down
+```
+
+The SQLite database is persisted in a named Docker volume (`bot-data`).
+
+## Deployment
+
+### Docker (recommended)
+
+```bash
+# Build the production image (~10 MB)
+docker build -t geekbot .
+
+# Run with your .env file
+docker run -d \
+  --name geekbot \
+  --restart unless-stopped \
+  --env-file .env \
+  -v bot-data:/data \
+  geekbot
+```
+
+### docker-compose
+
+```bash
+docker compose up -d --build
+```
+
+The compose file includes resource limits, automatic restart, and a persistent volume for the database.
+
+### System requirements
+
+| Resource | Minimum | Recommended |
+|----------|---------|-------------|
+| CPU | 0.1 core | 0.5 core |
+| RAM | 32 MB | 128 MB |
+| Disk | 100 MB | 500 MB |
+
+The bot only makes outbound connections (WebSocket + REST) — no inbound ports are required.
 
 ## Project Structure
 
 ```
 .
-├── .devcontainer/          # Codespaces devcontainer config
-├── .github/workflows/      # CI pipeline
+├── .devcontainer/          # GitHub Codespaces devcontainer
+├── .github/workflows/      # CI pipeline (vet, build, test)
 ├── cmd/bot/                # Application entry point
 ├── internal/
-│   ├── config/             # Configuration loading
-│   ├── rocket/             # Rocket.Chat SDK client
-│   ├── commands/           # Slash command framework
-│   ├── standup/            # Standup business logic
-│   └── store/              # SQLite persistence
-├── .env.example            # Environment variable template
-└── go.mod                  # Go module definition
+│   ├── commands/           # Slash command registry and handlers
+│   ├── config/             # Environment variable loading
+│   ├── convstate/          # Conversation state manager (DM flow)
+│   ├── rocket/             # Rocket.Chat realtime + REST client
+│   └── store/              # SQLite persistence layer
+├── Dockerfile              # Multi-stage distroless build
+├── docker-compose.yml      # Docker Compose deployment
+├── Makefile                # Build automation targets
+└── SECURITY.md             # Security policy and disclosure
 ```
 
 ## Architecture
 
 ```
-Rocket.Chat Server
-      ↕ WebSocket + REST
-Roket.Chat-GeekBot
-  ├── Command Router
-  ├── Team Manager (roles, members)
-  ├── Standup Collector
-  ├── Report Generator
-  └── SQLite Store
+┌─────────────────────┐
+│  Rocket.Chat Server │
+└──────────┬──────────┘
+           │ WebSocket + REST
+┌──────────▼──────────┐
+│   Roket.Chat-GeekBot  │
+│  ┌──────────────┐   │
+│  │ Command      │   │
+│  │ Router       │   │
+│  └──────┬───────┘   │
+│  ┌──────▼───────┐   │
+│  │ Team Manager │   │
+│  │ (roles,      │   │
+│  │  members)    │   │
+│  └──────┬───────┘   │
+│  ┌──────▼───────┐   │
+│  │ Standup      │   │
+│  │ Collector    │   │
+│  └──────┬───────┘   │
+│  ┌──────▼───────┐   │
+│  │ Report       │   │
+│  │ Generator    │   │
+│  └──────┬───────┘   │
+│  ┌──────▼───────┐   │
+│  │ SQLite Store  │   │
+│  └──────────────┘   │
+└─────────────────────┘
 ```
 
-## Roadmap
+## Development
 
-- [x] Team daily standup reports
-- [ ] Scheduled standup reminders
-- [ ] Standup history and trends
-- [ ] Web dashboard
-- [ ] Integration with GitHub, Jira, and other tools
-- [ ] Standup notifications via DM
+```bash
+# Build
+make build
+
+# Run tests
+make test
+
+# Lint
+make vet
+
+# Clean artifacts
+make clean
+```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for branch strategy, commit conventions, and PR guidelines.
+
+## Security
+
+See [SECURITY.md](SECURITY.md) for the security policy and vulnerability disclosure process.
 
 ## License
 
