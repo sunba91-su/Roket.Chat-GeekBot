@@ -1,0 +1,25 @@
+{
+  "name": "Roket.Chat-GeekBot",
+  "image": "mcr.microsoft.com/devcontainers/go:1.22",
+  "containerEnv": {
+    "GOFLAGS": "-mod=mod"
+  },
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "golang.Go"
+      ],
+      "settings": {
+        "go.useLanguageServer": true,
+        "go.gopath": "/go",
+        "go.goroot": "/usr/local/go"
+      }
+    }
+  },
+  "postCreateCommand": "go mod download",
+  "features": {
+    "ghcr.io/devcontainers/features/go:1": {
+      "version": "1.22"
+    }
+  }
+}
