@@ -141,6 +141,13 @@ func (c *Client) IsConnected() bool {
 	return c.connected
 }
 
+func (c *Client) UserInfo(username string) (*models.User, error) {
+	if c.rest == nil {
+		return nil, fmt.Errorf("not connected")
+	}
+	return c.rest.UserInfo(username)
+}
+
 func (c *Client) listenForMessages() {
 	for {
 		select {

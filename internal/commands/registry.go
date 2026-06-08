@@ -12,6 +12,16 @@ type Messenger interface {
 	SendMessage(roomID, text string) error
 }
 
+type UserInfo struct {
+	ID       string
+	Username string
+	Name     string
+}
+
+type UserProvider interface {
+	UserInfo(username string) (*UserInfo, error)
+}
+
 type Permission int
 
 const (
@@ -29,6 +39,7 @@ type Context struct {
 	Args     []string
 	Store    *store.Store
 	Messenger
+	UserProvider
 	Config   *config.Config
 	CmdName  string
 	IsDM     bool

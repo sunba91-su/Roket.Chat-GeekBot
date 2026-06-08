@@ -14,6 +14,22 @@ import (
 	"github.com/sunba91-su/Roket.Chat-GeekBot/internal/store"
 )
 
+type userProviderAdapter struct {
+	client *rocket.Client
+}
+
+func (a *userProviderAdapter) UserInfo(username string) (*commands.UserInfo, error) {
+	user, err := a.client.UserInfo(username)
+	if err != nil {
+		return nil, err
+	}
+	return &commands.UserInfo{
+		ID:       user.ID,
+		Username: user.UserName,
+		Name:     user.Name,
+	}, nil
+}
+
 func main() {
 	cfg, err := config.Load()
 	if err != nil {
@@ -42,16 +58,18 @@ func main() {
 	}
 
 	cmdReg := commands.New()
+	commands.RegisterTeamCommands(cmdReg)
 
 	client.OnMessage(func(msg rocket.IncomingMessage) {
 		ctx := &commands.Context{
-			UserID:    msg.UserID,
-			Username:  msg.Username,
-			RoomID:    msg.RoomID,
-			RawText:   msg.Text,
-			Store:     st,
-			Messenger: client,
-			Config:    cfg,
+			UserID:       msg.UserID,
+			Username:     msg.Username,
+			RoomID:       msg.RoomID,
+			RawText:      msg.Text,
+			Store:        st,
+			Messenger:    client,
+			UserProvider: &userProviderAdapter{client: client},
+			Config:       cfg,
 		}
 
 		handled, err := cmdReg.Dispatch(ctx)
