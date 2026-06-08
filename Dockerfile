@@ -1,4 +1,4 @@
-FROM golang:1.22-alpine AS builder
+FROM golang:1.25-alpine AS builder
 ARG http_proxy
 ARG https_proxy
 ARG no_proxy
