@@ -38,11 +38,7 @@ jobs:
         with:
           go-version: "1.22"
           cache: true
-      - run: go test ./... -count=1 -race -coverprofile=coverage.out
-      - uses: actions/upload-artifact@v4
-        with:
-          name: coverage
-          path: coverage.out
+      - run: go test ./... -count=1 -race -cover
 
   docker:
     runs-on: ubuntu-latest
