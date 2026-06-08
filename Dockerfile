@@ -1,4 +1,7 @@
 FROM golang:1.22-alpine AS builder
+ARG http_proxy
+ARG https_proxy
+ARG no_proxy
 RUN apk add --no-cache ca-certificates tzdata && \
     adduser -D -u 1001 appuser
 WORKDIR /src
