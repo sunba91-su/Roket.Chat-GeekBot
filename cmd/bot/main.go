@@ -34,6 +34,10 @@ func (a *userProviderAdapter) UserInfo(username string) (*commands.UserInfo, err
 }
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "-health" {
+		os.Exit(0)
+	}
+
 	cfg, err := config.Load()
 	if err != nil {
 		log.Fatalf("Failed to load config: %v", err)
