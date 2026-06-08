@@ -23,6 +23,8 @@ RUN apk add --no-cache ca-certificates tzdata && \
 
 COPY --from=builder /bin/bot /bot
 
+RUN mkdir -p /data && chown -R appuser:appuser /data
+
 USER appuser
 WORKDIR /home/appuser
 VOLUME /data
