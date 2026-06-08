@@ -12,6 +12,60 @@ func RegisterStandupCommands(r *Registry) {
 	r.Register("submit", handleSubmit, PermissionMember)
 	r.Register("status", handleStatus, PermissionMember)
 	r.Register("report", handleReport, PermissionAny)
+	r.Register("cancel", handleCancel, PermissionMember)
+	r.Register("list", handleList, PermissionAny)
+}
+
+func resolveSubmitTeam(ctx *Context, teams []*store.Team) (*store.Team, string, error) {
+	if len(teams) == 1 {
+		return teams[0], "", nil
+	}
+
+	for i, a := range ctx.Args {
+		if (a == "--team" || a == "-t") && i+1 < len(ctx.Args) {
+			name := ctx.Args[i+1]
+			for _, t := range teams {
+				if strings.EqualFold(t.Name, name) {
+					return t, "", nil
+				}
+			}
+			return nil, "", fmt.Errorf("You are not a member of team %q.", name)
+		}
+	}
+
+	var names []string
+	for _, t := range teams {
+		names = append(names, t.Name)
+	}
+	return nil, "", fmt.Errorf(
+		"You are in multiple teams. Use `--team \"<name>\"`: %s",
+		strings.Join(names, ", "),
+	)
+}
+
+func activeOrNewSession(ctx *Context, teamID, teamName string) (string, error) {
+	date := time.Now().Format("2006-01-02")
+
+	session, err := ctx.Store.GetActiveSession(teamID, date)
+	if err == nil {
+		submitted, _ := ctx.Store.HasSubmitted(session.ID, ctx.UserID)
+		if submitted {
+			return "", fmt.Errorf("You have already submitted your standup for %s today.", teamName)
+		}
+		return session.ID, nil
+	}
+
+	sessionID := fmt.Sprintf("sess-%d-%s", time.Now().UnixMilli(), teamID)
+	session = &store.StandupSession{
+		ID:     sessionID,
+		TeamID: teamID,
+		Date:   date,
+		Status: "open",
+	}
+	if err := ctx.Store.CreateSession(session); err != nil {
+		return "", fmt.Errorf("Failed to create session: %v", err)
+	}
+	return sessionID, nil
 }
 
 func handleSubmit(ctx *Context) error {
@@ -25,26 +79,20 @@ func handleSubmit(ctx *Context) error {
 			"You are not a member of any team.")
 	}
 
+	team, _, err := resolveSubmitTeam(ctx, teams)
+	if err != nil {
+		return send(ctx.Messenger, ctx.RoomID, err.Error())
+	}
+
 	dmRoomID, err := ensureDMRoom(ctx)
 	if err != nil {
 		return send(ctx.Messenger, ctx.RoomID,
 			fmt.Sprintf("Could not start DM: %v", err))
 	}
 
-	team := teams[0]
-	date := time.Now().Format("2006-01-02")
-
-	sessionID := fmt.Sprintf("sess-%d-%s", time.Now().UnixMilli(), team.ID)
-
-	session := &store.StandupSession{
-		ID:     sessionID,
-		TeamID: team.ID,
-		Date:   date,
-		Status: "open",
-	}
-	if err := ctx.Store.CreateSession(session); err != nil {
-		return send(ctx.Messenger, ctx.RoomID,
-			fmt.Sprintf("Failed to create session: %v", err))
+	sessionID, err := activeOrNewSession(ctx, team.ID, team.Name)
+	if err != nil {
+		return send(ctx.Messenger, ctx.RoomID, err.Error())
 	}
 
 	questions := strings.Split(team.Questions, "|")
@@ -68,8 +116,12 @@ func handleStatus(ctx *Context) error {
 		return send(ctx.Messenger, ctx.RoomID, "You are not a member of any team.")
 	}
 
+	team, _, err := resolveSubmitTeam(ctx, teams)
+	if err != nil {
+		return send(ctx.Messenger, ctx.RoomID, err.Error())
+	}
+
 	date := time.Now().Format("2006-01-02")
-	team := teams[0]
 
 	sessID := findSessionID(ctx, team.ID, date)
 	submitted, total, err := ctx.Store.GetSessionStatus(team.ID, date)
@@ -88,6 +140,63 @@ func handleStatus(ctx *Context) error {
 	return send(ctx.Messenger, ctx.RoomID,
 		fmt.Sprintf("*Standup Status — %s*\n%s\nTeam progress: %d/%d submitted.",
 			team.Name, statusLine, submitted, total))
+}
+
+func handleCancel(ctx *Context) error {
+	conv, ok := ctx.ConvState.GetConversation(ctx.UserID)
+	if !ok {
+		return send(ctx.Messenger, ctx.RoomID,
+			"You don't have an active standup submission.")
+	}
+
+	cancelTo := conv.RoomID
+	if !ctx.IsDM {
+		cancelTo = ctx.RoomID
+	}
+
+	partial, err := ctx.ConvState.Cancel(ctx.UserID)
+	if err != nil {
+		return send(ctx.Messenger, cancelTo,
+			"You don't have an active standup submission.")
+	}
+
+	if partial == "" {
+		partial = "No answers recorded."
+	}
+
+	return send(ctx.Messenger, cancelTo,
+		fmt.Sprintf("❌ *Standup cancelled.* Your partial answers:\n%s", partial))
+}
+
+func handleList(ctx *Context) error {
+	var teams []*store.Team
+	var err error
+
+	if ctx.Username == ctx.Config.MainAdmin {
+		teams, err = ctx.Store.ListTeams()
+	} else {
+		teams, err = ctx.Store.GetTeamsForUser(ctx.UserID)
+	}
+	if err != nil {
+		return send(ctx.Messenger, ctx.RoomID,
+			"Error looking up teams.")
+	}
+	if len(teams) == 0 {
+		return send(ctx.Messenger, ctx.RoomID, "No teams found.")
+	}
+
+	var lines []string
+	for _, t := range teams {
+		isLead, _ := ctx.Store.IsTeamLead(t.ID, ctx.UserID)
+		role := ""
+		if isLead {
+			role = " (lead)"
+		}
+		lines = append(lines, fmt.Sprintf("  • **%s**%s", t.Name, role))
+	}
+
+	return send(ctx.Messenger, ctx.RoomID,
+		fmt.Sprintf("Teams:\n%s", strings.Join(lines, "\n")))
 }
 
 func handleReport(ctx *Context) error {

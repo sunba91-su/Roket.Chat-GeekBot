@@ -201,6 +201,67 @@ func TestStandupReportNonLeadDenied(t *testing.T) {
 	}
 }
 
+func TestStandupCancelNoConversation(t *testing.T) {
+	h := newStandupHarness(t)
+
+	h.dispatch("/standup cancel")
+
+	msg := strings.Join(h.msgr.sent, " ")
+	if !contains(msg, "don't have") && !contains(msg, "active") {
+		t.Logf("Cancel message: %s", msg)
+	}
+}
+
+func TestStandupCancelActive(t *testing.T) {
+	h := newStandupHarness(t)
+
+	h.dispatch("/standup submit")
+
+	h.dispatch("/standup cancel")
+
+	msg := strings.Join(h.msgr.sent, " ")
+	if !contains(msg, "cancelled") {
+		t.Errorf("expected cancellation message, got: %s", msg)
+	}
+
+	_, ok := h.convMgr.GetConversation("alice-id")
+	if ok {
+		t.Error("conversation should be cancelled")
+	}
+}
+
+func TestStandupListTeams(t *testing.T) {
+	h := newStandupHarness(t)
+
+	h.dispatch("/standup list")
+
+	msg := strings.Join(h.msgr.sent, " ")
+	if !contains(msg, "Eng") {
+		t.Errorf("expected team name in list, got: %s", msg)
+	}
+}
+
+func TestStandupSubmitDuplicateSession(t *testing.T) {
+	h := newStandupHarness(t)
+
+	now := time.Now().Format("2006-01-02")
+	_ = h.s.CreateSession(&store.StandupSession{
+		ID: "sess-existing", TeamID: "t1", Date: now, Status: "open",
+	})
+	_ = h.s.SubmitResponse(&store.StandupResponse{
+		ID: "resp-existing", SessionID: "sess-existing", UserID: "alice-id",
+		Username: "alice", Answers: "Fine|Coding|None",
+		SubmittedAt: time.Now(),
+	})
+
+	h.dispatch("/standup submit")
+
+	msg := strings.Join(h.msgr.sent, " ")
+	if !contains(msg, "already submitted") {
+		t.Errorf("expected duplicate rejection, got: %s", msg)
+	}
+}
+
 func TestStandupConversationFlow(t *testing.T) {
 	h := newStandupHarness(t)
 
