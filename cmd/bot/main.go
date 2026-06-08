@@ -6,10 +6,13 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"syscall"
+	"time"
 
 	"github.com/sunba91-su/Roket.Chat-GeekBot/internal/commands"
 	"github.com/sunba91-su/Roket.Chat-GeekBot/internal/config"
+	"github.com/sunba91-su/Roket.Chat-GeekBot/internal/convstate"
 	"github.com/sunba91-su/Roket.Chat-GeekBot/internal/rocket"
 	"github.com/sunba91-su/Roket.Chat-GeekBot/internal/store"
 )
@@ -59,8 +62,13 @@ func main() {
 
 	cmdReg := commands.New()
 	commands.RegisterTeamCommands(cmdReg)
+	commands.RegisterStandupCommands(cmdReg)
+
+	convMgr := convstate.NewManager()
 
 	client.OnMessage(func(msg rocket.IncomingMessage) {
+		isDM, _ := client.IsDMRoom(msg.RoomID)
+
 		ctx := &commands.Context{
 			UserID:       msg.UserID,
 			Username:     msg.Username,
@@ -70,6 +78,8 @@ func main() {
 			Messenger:    client,
 			UserProvider: &userProviderAdapter{client: client},
 			Config:       cfg,
+			ConvState:    convMgr,
+			IsDM:         isDM,
 		}
 
 		handled, err := cmdReg.Dispatch(ctx)
@@ -78,6 +88,15 @@ func main() {
 		}
 		if handled {
 			log.Printf("[%s] %s: %s", msg.RoomID, msg.Username, msg.Text)
+			return
+		}
+
+		if !isDM {
+			return
+		}
+
+		if err := handleStandupReply(ctx); err != nil {
+			log.Printf("Standup reply error: %v", err)
 		}
 	})
 
@@ -98,4 +117,46 @@ func main() {
 	<-sig
 	fmt.Println()
 	log.Println("Shutting down...")
+}
+
+func handleStandupReply(ctx *commands.Context) error {
+	conv, ok := ctx.ConvState.GetConversation(ctx.UserID)
+	if !ok {
+		return nil
+	}
+	if conv.RoomID != ctx.RoomID {
+		return nil
+	}
+
+	finished, nextQ, err := ctx.ConvState.RecordAnswer(ctx.UserID, ctx.RawText)
+	if err != nil {
+		return ctx.SendMessage(ctx.RoomID, "Error recording your answer.")
+	}
+
+	if finished {
+		conv, ok := ctx.ConvState.GetConversation(ctx.UserID)
+		if !ok {
+			return ctx.SendMessage(ctx.RoomID, "Error: conversation lost.")
+		}
+		answersJoined := strings.Join(conv.Answers, "|")
+		resp := &store.StandupResponse{
+			ID:          fmt.Sprintf("resp-%d", time.Now().UnixMilli()),
+			SessionID:   conv.SessionID,
+			UserID:      conv.UserID,
+			Username:    conv.Username,
+			Answers:     answersJoined,
+			SubmittedAt: time.Now(),
+		}
+		if err := ctx.Store.SubmitResponse(resp); err != nil {
+			return ctx.SendMessage(ctx.RoomID,
+				fmt.Sprintf("Error saving standup: %v", err))
+		}
+
+		ctx.ConvState.EndConversation(ctx.UserID)
+		return ctx.SendMessage(ctx.RoomID,
+			"✅ *Standup submitted!* Thank you. Have a great day!")
+	}
+
+	return ctx.SendMessage(ctx.RoomID,
+		fmt.Sprintf("**Q%d:** %s\n\nReply with your answer.", conv.CurrentQ+1, nextQ))
 }
