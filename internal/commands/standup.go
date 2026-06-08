@@ -11,6 +11,7 @@ import (
 func RegisterStandupCommands(r *Registry) {
 	r.Register("submit", handleSubmit, PermissionMember)
 	r.Register("status", handleStatus, PermissionMember)
+	r.Register("report", handleReport, PermissionAny)
 }
 
 func handleSubmit(ctx *Context) error {
@@ -70,17 +71,13 @@ func handleStatus(ctx *Context) error {
 	date := time.Now().Format("2006-01-02")
 	team := teams[0]
 
+	sessID := findSessionID(ctx, team.ID, date)
 	submitted, total, err := ctx.Store.GetSessionStatus(team.ID, date)
 	if err != nil {
-		session, err2 := ctx.Store.GetActiveSession(team.ID, date)
-		if err2 != nil {
-			return send(ctx.Messenger, ctx.RoomID,
-				"No active standup for today.")
-		}
-		submitted, total, _ = ctx.Store.GetSessionStatus(team.ID, session.Date)
+		return send(ctx.Messenger, ctx.RoomID, "No active standup for today.")
 	}
 
-	hasSubmitted, _ := ctx.Store.HasSubmitted(sessionID(ctx, team.ID), ctx.UserID)
+	hasSubmitted, _ := ctx.Store.HasSubmitted(sessID, ctx.UserID)
 	statusLine := ""
 	if hasSubmitted {
 		statusLine = "✅ You have submitted."
@@ -93,13 +90,91 @@ func handleStatus(ctx *Context) error {
 			team.Name, statusLine, submitted, total))
 }
 
-func sessionID(ctx *Context, teamID string) string {
-	date := time.Now().Format("2006-01-02")
-	session, err := ctx.Store.GetActiveSession(teamID, date)
+func handleReport(ctx *Context) error {
+	team, err := resolveTeam(ctx)
 	if err != nil {
+		return send(ctx.Messenger, ctx.RoomID, err.Error())
+	}
+
+	if ctx.Username != ctx.Config.MainAdmin {
+		isLead, _ := ctx.Store.IsTeamLead(team.ID, ctx.UserID)
+		if !isLead {
+			return send(ctx.Messenger, ctx.RoomID,
+				"Only team leads and the main admin can post reports.")
+		}
+	}
+
+	date := time.Now().Format("2006-01-02")
+	sessID := findSessionID(ctx, team.ID, date)
+	if sessID == "" {
+		return send(ctx.Messenger, ctx.RoomID,
+			fmt.Sprintf("No standup session found for %s today.", team.Name))
+	}
+
+	responses, err := ctx.Store.GetResponses(sessID)
+	if err != nil {
+		return send(ctx.Messenger, ctx.RoomID,
+			fmt.Sprintf("Failed to get responses: %v", err))
+	}
+
+	questions := strings.Split(team.Questions, "|")
+
+	report := buildReport(team.Name, date, questions, responses)
+
+	submitted, total, _ := ctx.Store.GetSessionStatus(team.ID, date)
+
+	sendTo := team.ChannelID
+	if len(ctx.Args) > 0 && ctx.Args[0] == "--here" {
+		sendTo = ctx.RoomID
+	}
+
+	if err := send(ctx.Messenger, sendTo, report); err != nil {
+		return send(ctx.Messenger, ctx.RoomID,
+			fmt.Sprintf("Failed to post report: %v", err))
+	}
+
+	return send(ctx.Messenger, ctx.RoomID,
+		fmt.Sprintf("✅ Report posted to #%s (%d/%d submitted).",
+			sendTo, submitted, total))
+}
+
+func buildReport(teamName, date string, questions []string, responses []*store.StandupResponse) string {
+	emojis := []string{"✅", "💻", "⚠️", "📌", "🔧", "🎯"}
+
+	var sb strings.Builder
+	sb.WriteString(fmt.Sprintf("📋 *Daily Standup — %s* (%s)\n\n", teamName, date))
+
+	for _, r := range responses {
+		sb.WriteString(fmt.Sprintf("👤 @%s\n", r.Username))
+		answers := strings.Split(r.Answers, "|")
+		for i, a := range answers {
+			q := ""
+			if i < len(questions) {
+				q = questions[i]
+			}
+			emoji := emojis[i%len(emojis)]
+			if q != "" {
+				sb.WriteString(fmt.Sprintf("%s *%s* %s\n", emoji, q, a))
+			} else {
+				sb.WriteString(fmt.Sprintf("%s %s\n", emoji, a))
+			}
+		}
+		sb.WriteString("\n")
+	}
+
+	return sb.String()
+}
+
+func findSessionID(ctx *Context, teamID, date string) string {
+	session, err := ctx.Store.GetActiveSession(teamID, date)
+	if err == nil {
+		return session.ID
+	}
+	sessions, err := ctx.Store.ListSessions(teamID, 1)
+	if err != nil || len(sessions) == 0 {
 		return ""
 	}
-	return session.ID
+	return sessions[0].ID
 }
 
 func ensureDMRoom(ctx *Context) (string, error) {
