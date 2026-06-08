@@ -56,7 +56,8 @@ cp .env.example .env
 |----------|----------|---------|-------------|
 | `ROCKETCHAT_SERVER_URL` | Yes | — | Rocket.Chat server URL |
 | `ROCKETCHAT_BOT_USERNAME` | Yes | — | Bot account username |
-| `ROCKETCHAT_BOT_PASSWORD` | Yes | — | Bot account password |
+| `ROCKETCHAT_BOT_PASSWORD` | One of | — | Bot account password (use if password has no special chars) |
+| `ROCKETCHAT_BOT_PASSWORD_FILE` | One of | — | Path to file containing the bot password (avoids shell/env escaping) |
 | `ROCKETCHAT_MAIN_ADMIN` | Yes | — | Rocket.Chat username of the main bot administrator |
 | `STANDUP_DB_PATH` | No | `~/standup-bot.db` | Path to the SQLite database file |
 
