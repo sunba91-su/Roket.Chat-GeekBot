@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	"github.com/sunba91-su/Roket.Chat-GeekBot/internal/config"
+	"github.com/sunba91-su/Roket.Chat-GeekBot/internal/convstate"
 	"github.com/sunba91-su/Roket.Chat-GeekBot/internal/store"
 )
 
@@ -40,9 +41,10 @@ type Context struct {
 	Store    *store.Store
 	Messenger
 	UserProvider
-	Config   *config.Config
-	CmdName  string
-	IsDM     bool
+	Config    *config.Config
+	ConvState *convstate.Manager
+	CmdName   string
+	IsDM      bool
 }
 
 type Handler func(ctx *Context) error

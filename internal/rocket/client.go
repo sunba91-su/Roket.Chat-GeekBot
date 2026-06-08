@@ -1,6 +1,7 @@
 package rocket
 
 import (
+	"encoding/json"
 	"fmt"
 	"log"
 	"net/url"
@@ -11,6 +12,21 @@ import (
 	"github.com/RocketChat/Rocket.Chat.Go.SDK/realtime"
 	"github.com/RocketChat/Rocket.Chat.Go.SDK/rest"
 )
+
+type roomInfoResponse struct {
+	Room struct {
+		ID   string `json:"_id"`
+		Type string `json:"t"`
+	} `json:"room"`
+	Success bool `json:"success"`
+}
+
+func (r *roomInfoResponse) OK() error {
+	if !r.Success {
+		return fmt.Errorf("request failed")
+	}
+	return nil
+}
 
 type Client struct {
 	serverURL  *url.URL
@@ -139,6 +155,34 @@ func (c *Client) IsConnected() bool {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	return c.connected
+}
+
+func (c *Client) CreateDM(username string) (string, error) {
+	if c.rest == nil {
+		return "", fmt.Errorf("not connected")
+	}
+	room, err := c.rest.CreateDirectMessage(username)
+	if err != nil {
+		return "", fmt.Errorf("create DM: %w", err)
+	}
+	rid := room.Rid
+	if rid == "" {
+		rid = room.ID
+	}
+	return rid, nil
+}
+
+func (c *Client) IsDMRoom(roomID string) (bool, error) {
+	if c.rest == nil {
+		return false, fmt.Errorf("not connected")
+	}
+	var resp roomInfoResponse
+	if err := c.rest.Get("rooms.info", url.Values{"roomId": {roomID}}, &resp); err != nil {
+		if e, ok := err.(*json.UnmarshalTypeError); !ok && e != nil {
+			return false, err
+		}
+	}
+	return resp.Room.Type == "d", nil
 }
 
 func (c *Client) UserInfo(username string) (*models.User, error) {
