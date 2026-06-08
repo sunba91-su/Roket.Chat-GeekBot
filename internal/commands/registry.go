@@ -126,6 +126,13 @@ func (r *Registry) checkPermission(ctx *Context, required Permission) error {
 		if ctx.Username == ctx.Config.MainAdmin {
 			return nil
 		}
+		teams, err := ctx.Store.GetTeamsForUser(ctx.UserID)
+		if err != nil {
+			return fmt.Errorf("Error checking membership.")
+		}
+		if len(teams) == 0 {
+			return fmt.Errorf("You are not a member of any team.")
+		}
 		return nil
 	default:
 		return nil

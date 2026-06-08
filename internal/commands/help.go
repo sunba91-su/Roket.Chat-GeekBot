@@ -21,6 +21,8 @@ func handleHelp(ctx *Context) error {
 	cmds += "  /standup team set timezone <tz>\n"
 	cmds += "  /standup submit — start daily standup\n"
 	cmds += "  /standup status — check submission status\n"
+	cmds += "  /standup cancel — cancel in-progress standup\n"
+	cmds += "  /standup list — list your teams\n"
 	cmds += "  /standup report — view latest report\n"
 	cmds += "  /standup help — show this message"
 
@@ -31,6 +33,8 @@ func sendHelpForCommand(ctx *Context, cmd string) error {
 	help := map[string]string{
 		"submit": "Start your daily standup. The bot will DM you with questions.",
 		"status": "Check if you've submitted your standup today.",
+		"cancel": "Cancel an in-progress standup submission.",
+		"list":   "List teams you belong to.",
 		"report": "Post the latest standup report to the team channel.",
 	}
 
