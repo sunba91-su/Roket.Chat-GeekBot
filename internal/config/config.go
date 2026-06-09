@@ -13,8 +13,20 @@ type Config struct {
 	MainAdmin  string
 }
 
+func trimQuotes(s string) string {
+	if len(s) < 2 {
+		return s
+	}
+	if (s[0] == '\'' && s[len(s)-1] == '\'') ||
+		(s[0] == '"' && s[len(s)-1] == '"') {
+		return s[1 : len(s)-1]
+	}
+	return s
+}
+
 func Load() (*Config, error) {
 	botPass := os.Getenv("ROCKETCHAT_BOT_PASSWORD")
+	botPass = trimQuotes(botPass)
 	if botPass == "" {
 		if path := os.Getenv("ROCKETCHAT_BOT_PASSWORD_FILE"); path != "" {
 			b, err := os.ReadFile(path)
@@ -22,6 +34,7 @@ func Load() (*Config, error) {
 				return nil, fmt.Errorf("reading ROCKETCHAT_BOT_PASSWORD_FILE: %w", err)
 			}
 			botPass = strings.TrimSpace(string(b))
+			botPass = trimQuotes(botPass)
 		}
 	}
 
