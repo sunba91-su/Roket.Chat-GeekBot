@@ -41,6 +41,8 @@ type Client struct {
 	connected  bool
 	user       string
 	password   string
+	token      string
+	userID     string
 }
 
 type MessageHandler func(msg IncomingMessage)
@@ -66,12 +68,14 @@ func New(serverURL string) (*Client, error) {
 	}, nil
 }
 
-func (c *Client) Connect(user, password string) error {
+func (c *Client) Connect(user, password, token, userID string) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	c.user = user
 	c.password = password
+	c.token = token
+	c.userID = userID
 
 	log.Printf("Connecting to Rocket.Chat at %s", c.serverURL.String())
 
@@ -93,10 +97,19 @@ func (c *Client) connect() error {
 		return fmt.Errorf("realtime connect: %w", err)
 	}
 
-	creds := &models.UserCredentials{
-		Email:    c.user,
-		Password: c.password,
+	var creds *models.UserCredentials
+	if c.token != "" && c.userID != "" {
+		creds = &models.UserCredentials{
+			ID:    c.userID,
+			Token: c.token,
+		}
+	} else {
+		creds = &models.UserCredentials{
+			Email:    c.user,
+			Password: c.password,
+		}
 	}
+
 	if _, err := rt.Login(creds); err != nil {
 		rt.Close()
 		return fmt.Errorf("realtime login: %w", err)
