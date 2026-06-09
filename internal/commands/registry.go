@@ -69,11 +69,12 @@ func (r *Registry) Register(name string, handler Handler, perm Permission) {
 }
 
 func (r *Registry) Dispatch(ctx *Context) (bool, error) {
-	if !strings.HasPrefix(ctx.RawText, "/standup") {
+	text := strings.TrimSpace(ctx.RawText)
+	if !strings.HasPrefix(text, "/standup") && !strings.HasPrefix(text, "!standup") {
 		return false, nil
 	}
 
-	parts := strings.Fields(ctx.RawText)
+	parts := strings.Fields(text)
 	if len(parts) < 2 {
 		ctx.CmdName = "help"
 		ctx.Args = nil

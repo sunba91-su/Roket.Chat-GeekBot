@@ -3,7 +3,7 @@ package commands
 import "fmt"
 
 func handleHelp(ctx *Context) error {
-	base := "Available commands:\n"
+	base := "Available commands (prefix with `/standup` or `!standup`):\n"
 
 	cmds := ""
 	if ctx.Username == ctx.Config.MainAdmin {
@@ -40,7 +40,7 @@ func sendHelpForCommand(ctx *Context, cmd string) error {
 
 	msg, ok := help[cmd]
 	if !ok {
-		msg = fmt.Sprintf("No help available for `/standup %s`.", cmd)
+		msg = fmt.Sprintf("No help available for `%s %s`.", "command", cmd)
 	}
 	return send(ctx.Messenger, ctx.RoomID, msg)
 }
