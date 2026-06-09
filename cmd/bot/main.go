@@ -104,7 +104,7 @@ func main() {
 		}
 	})
 
-	if err := client.Connect(cfg.BotUser, cfg.BotPass); err != nil {
+	if err := client.Connect(cfg.BotUser, cfg.BotPass, cfg.BotToken, cfg.BotUserID); err != nil {
 		log.Printf("Failed to connect: %v", err)
 		if strings.Contains(err.Error(), "authentication failed") {
 			log.Println("Auth failure is permanent — exiting to prevent Docker restart loop")
