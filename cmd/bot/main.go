@@ -118,6 +118,10 @@ func main() {
 		log.Fatalf("Failed to subscribe: %v", err)
 	}
 
+	if err := client.RegisterSlashCommand("standup"); err != nil {
+		log.Printf("Warning: could not register /standup command (use !standup instead): %v", err)
+	}
+
 	log.Println("Bot is running. Press Ctrl+C to stop.")
 
 	sig := make(chan os.Signal, 1)

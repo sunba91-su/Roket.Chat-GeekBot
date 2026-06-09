@@ -1,6 +1,7 @@
 package rocket
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -211,6 +212,22 @@ func (c *Client) IsDMRoom(roomID string) (bool, error) {
 		}
 	}
 	return resp.Room.Type == "d", nil
+}
+
+func (c *Client) RegisterSlashCommand(command string) error {
+	if c.rest == nil {
+		return fmt.Errorf("not connected")
+	}
+	body := fmt.Sprintf(`{"command": "%s", "clientOnly": true}`, command)
+	var resp rest.Status
+	if err := c.rest.Post("commands.register", bytes.NewBufferString(body), &resp); err != nil {
+		return fmt.Errorf("register slash command: %w", err)
+	}
+	if !resp.Success {
+		return fmt.Errorf("slash command registration failed: %s", resp.Error)
+	}
+	log.Printf("Registered /%s as a client-only slash command", command)
+	return nil
 }
 
 func (c *Client) UserInfo(username string) (*models.User, error) {
